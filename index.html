@@ -231,6 +231,27 @@ td { padding:13px 20px; font-size:13px; vertical-align:middle; white-space:nowra
 .month-history { margin-top:28px; }
 .month-history-title { font-size:16px; font-weight:800; color:var(--text); margin-bottom:14px; letter-spacing:-0.01em; }
 
+/* DAILY SALES */
+.ds-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:16px; margin-top:22px; }
+.ds-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:20px; box-shadow:var(--shadow-sm); transition:box-shadow 0.2s,transform 0.2s; }
+.ds-card:hover { box-shadow:var(--shadow); transform:translateY(-2px); }
+.ds-card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+.ds-card-name { font-size:14px; font-weight:800; color:var(--text); }
+.ds-card-date { font-size:11px; font-weight:600; color:var(--muted2); }
+.ds-row { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--border); }
+.ds-row:last-child { border-bottom:none; }
+.ds-key { font-size:12px; font-weight:600; color:var(--muted); }
+.ds-val { font-size:13px; font-weight:700; }
+.ds-service-tag { display:inline-flex; padding:3px 10px; border-radius:6px; font-size:11px; font-weight:700; background:var(--accent-light); color:var(--accent); border:1px solid rgba(124,58,237,0.15); }
+.ds-total-row { background:linear-gradient(90deg,var(--primary-light),#f3effe); border-radius:10px; padding:12px 14px; margin-top:12px; display:flex; justify-content:space-between; align-items:center; }
+.ds-total-label { font-size:12px; font-weight:700; color:var(--primary); }
+.ds-total-val { font-size:16px; font-weight:800; color:var(--primary); }
+.ds-filters { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:20px; }
+.ds-filter-select { background:var(--surface); border:1.5px solid var(--border2); border-radius:9px; padding:8px 12px; font-family:'Plus Jakarta Sans',sans-serif; font-size:13px; font-weight:600; color:var(--text); outline:none; cursor:pointer; }
+.ds-filter-select:focus { border-color:var(--primary); }
+.ds-empty { text-align:center; padding:48px 20px; color:var(--muted2); }
+.ds-empty .big { font-size:40px; margin-bottom:12px; }
+
 @keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
 @media (max-width:900px) {
   .kpi-grid { grid-template-columns:repeat(2,1fr); }
@@ -279,6 +300,7 @@ td { padding:13px 20px; font-size:13px; vertical-align:middle; white-space:nowra
       <button class="nav-btn active" onclick="showView('dashboard')">📊 Dashboard</button>
       <button class="nav-btn" onclick="showView('customers')">👥 Customers</button>
       <button class="nav-btn" onclick="showView('sales')">📦 Monthly Sales</button>
+      <button class="nav-btn" onclick="showView('dailysales')">🛠️ Daily Sales</button>
       <button class="nav-btn" onclick="showView('settings')">⚙️ Settings</button>
     </nav>
     <div class="header-right">
@@ -320,9 +342,9 @@ td { padding:13px 20px; font-size:13px; vertical-align:middle; white-space:nowra
         <div class="kpi-card" style="animation-delay:0.15s">
           <div class="kpi-stripe" style="background:var(--warn)"></div>
           <div class="kpi-icon" style="background:var(--warn-light);color:var(--warn)">📦</div>
-          <div class="kpi-label">Parts This Month</div>
+          <div class="kpi-label">Yearly Parts Sales</div>
           <div class="kpi-val" id="kpi-parts">₹0</div>
-          <div class="kpi-sub" id="kpi-parts-sub">Selected month</div>
+          <div class="kpi-sub" id="kpi-parts-sub">Jan – Dec</div>
         </div>
         <div class="kpi-card" style="animation-delay:0.2s">
           <div class="kpi-stripe" style="background:var(--accent)"></div>
@@ -404,11 +426,57 @@ td { padding:13px 20px; font-size:13px; vertical-align:middle; white-space:nowra
       </div>
     </div>
 
+    <!-- DAILY SALES -->
+    <div id="view-dailysales" style="display:none">
+      <div class="view-header">
+        <h2>Daily Sales</h2>
+        <span class="count-badge" id="ds-count-badge">0 entries</span>
+        <div style="margin-left:auto;display:flex;gap:10px;flex-wrap:wrap">
+          <select class="ds-filter-select" id="ds-filter-client" onchange="renderDailySales()">
+            <option value="">All Clients</option>
+          </select>
+          <select class="ds-filter-select" id="ds-filter-date" onchange="renderDailySales()">
+            <option value="">All Dates</option>
+            <option value="today">Today</option>
+            <option value="week">This Week</option>
+            <option value="month">This Month</option>
+          </select>
+          <button class="btn btn-primary" style="width:auto;padding:10px 20px" onclick="openDsModal()">+ Add Entry</button>
+        </div>
+      </div>
+
+      <!-- KPI SUMMARY -->
+      <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px">
+        <div class="kpi-card"><div class="kpi-stripe" style="background:var(--primary)"></div><div class="kpi-icon" style="background:var(--primary-light);color:var(--primary)">📋</div><div class="kpi-label">Total Entries</div><div class="kpi-val" id="ds-kpi-count">0</div><div class="kpi-sub">All records</div></div>
+        <div class="kpi-card"><div class="kpi-stripe" style="background:var(--warn)"></div><div class="kpi-icon" style="background:var(--warn-light);color:var(--warn)">🔩</div><div class="kpi-label">Material Sold</div><div class="kpi-val" id="ds-kpi-material">₹0</div><div class="kpi-sub">Total material cost</div></div>
+        <div class="kpi-card" style="grid-column:span 1">
+          <div class="kpi-stripe" style="background:var(--danger)"></div>
+          <div class="kpi-icon" style="background:var(--danger-light);color:var(--danger)">👷</div>
+          <div class="kpi-label">Labor Expense</div>
+          <div class="kpi-val" id="ds-kpi-labor">₹0</div>
+          <div class="kpi-sub">Total labor cost</div>
+          <div id="ds-labor-breakdown" style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px;display:none"></div>
+        </div>
+
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Sales Entries</span>
+          <input class="search-input" type="text" id="ds-search" placeholder="🔍 Search…" oninput="renderDailySales()">
+        </div>
+        <table>
+          <thead><tr><th>Date</th><th>Client</th><th>Service</th><th>Material Sold (₹)</th><th>Labor Expense (₹)</th><th>Chargeable / Revenue (₹)</th><th>Actions</th></tr></thead>
+          <tbody id="ds-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- SETTINGS -->
     <div id="view-settings" style="display:none">
       <div class="view-header"><h2>Settings</h2></div>
       <div class="info-box"><span class="info-icon">👥</span><span>This dashboard is <strong>shared with your team</strong>. All changes are visible to everyone instantly.</span></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:720px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:1100px">
         <div class="settings-card">
           <div class="settings-card-title">🔒 Change Password</div>
           <div class="field"><label>Current Password</label><input type="password" id="s-cur-pass" placeholder="Enter current password"></div>
@@ -425,6 +493,24 @@ td { padding:13px 20px; font-size:13px; vertical-align:middle; white-space:nowra
             <div style="font-size:11px;font-weight:700;color:var(--danger);margin-bottom:10px;letter-spacing:.05em;text-transform:uppercase">⚠️ Danger Zone</div>
             <button class="btn btn-danger" style="width:100%" onclick="confirmClearData()">Clear All Customer Data</button>
           </div>
+        </div>
+        <div class="settings-card" style="grid-column:span 2">
+          <div class="settings-card-title">📊 Tax Year Report (March → March)</div>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.6">Generate a detailed PDF report for your Indian tax year (April 1 → March 31). Includes monthly parts sales breakdown with charts.</p>
+          <div class="field-row" style="max-width:400px">
+            <div class="field">
+              <label>Select Tax Year</label>
+              <select id="tax-year-select" style="background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;padding:11px 14px;font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;color:var(--text);outline:none;width:100%">
+                <option value="2025-2026">FY 2025–2026 (Apr 2025 – Mar 2026)</option>
+                <option value="2026-2027">FY 2026–2027 (Apr 2026 – Mar 2027)</option>
+                <option value="2024-2025">FY 2024–2025 (Apr 2024 – Mar 2025)</option>
+              </select>
+            </div>
+            <div class="field" style="display:flex;align-items:flex-end">
+              <button class="btn btn-primary" style="width:100%;gap:8px" onclick="generateTaxReport()">📄 Generate PDF Report</button>
+            </div>
+          </div>
+          <div id="tax-report-status" style="display:none;margin-top:12px;padding:12px 16px;border-radius:10px;font-size:13px;font-weight:600"></div>
         </div>
       </div>
     </div>
@@ -466,6 +552,44 @@ td { padding:13px 20px; font-size:13px; vertical-align:middle; white-space:nowra
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('sales-modal')">Cancel</button>
       <button class="btn btn-primary" style="width:auto;padding:10px 28px" onclick="saveSalesUpdate()">Save All</button>
+    </div>
+  </div>
+</div>
+
+<!-- DAILY SALES MODAL -->
+<div class="modal-overlay" id="ds-modal">
+  <div class="modal">
+    <div class="modal-title"><span id="ds-modal-title">Add Daily Sale Entry</span><button class="modal-close" onclick="closeModal('ds-modal')">✕</button></div>
+    <div class="field-row">
+      <div class="field"><label>📅 Date *</label><input type="date" id="ds-date"></div>
+      <div class="field"><label>👤 Client Name *</label>
+        <select id="ds-client">
+          <option value="">Select client…</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label>🔧 Select Service *</label>
+      <select id="ds-service">
+        <option value="">Select service…</option>
+        <option value="Electric">⚡ Electric</option>
+        <option value="Plumbing">🔧 Plumbing</option>
+        <option value="AC">❄️ AC</option>
+        <option value="Small Furniture">🪑 Small Furniture</option>
+        <option value="RO">💧 RO</option>
+        
+      </select>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>🔩 Material Sold (₹)</label><input type="number" id="ds-material" placeholder="0" min="0" oninput="calcChargeable()"></div>
+      <div class="field"><label>👷 Labor Expense (₹)</label><input type="number" id="ds-labor" placeholder="0" min="0" oninput="calcChargeable()"></div>
+    </div>
+    <div class="field"><label>💰 Chargeable Cost (₹) <span style="color:var(--muted2);font-weight:500">(auto-calculated)</span></label>
+      <input type="number" id="ds-chargeable" placeholder="0" min="0" style="background:var(--primary-light);font-weight:700;color:var(--primary)">
+    </div>
+    <div class="field"><label>📝 Notes (optional)</label><textarea id="ds-notes" placeholder="Any additional details…"></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('ds-modal')">Cancel</button>
+      <button class="btn btn-primary" style="width:auto;padding:10px 28px" onclick="saveDsEntry()">Save Entry</button>
     </div>
   </div>
 </div>
@@ -675,11 +799,12 @@ async function showApp(){
   showView('dashboard');
 }
 async function showView(view){
-  ['dashboard','customers','sales','settings'].forEach(v=>{document.getElementById('view-'+v).style.display=v===view?'block':'none';});
-  document.querySelectorAll('.nav-btn').forEach((b,i)=>{b.classList.toggle('active',['dashboard','customers','sales','settings'][i]===view);});
+  ['dashboard','customers','sales','dailysales','settings'].forEach(v=>{document.getElementById('view-'+v).style.display=v===view?'block':'none';});
+  document.querySelectorAll('.nav-btn').forEach((b,i)=>{b.classList.toggle('active',['dashboard','customers','sales','dailysales','settings'][i]===view);});
   if(view==='dashboard') await renderDashboard();
   if(view==='customers') await renderCustTable();
   if(view==='sales') await renderSalesView();
+  if(view==='dailysales') await renderDailySales();
   if(view==='settings'){const c=await getCreds();document.getElementById('s-username').value=c.username;}
 }
 
@@ -690,13 +815,21 @@ let _customers = [];
 async function renderDashboard(){
   setSyncing();
   const cs = await getCustomers();
+  const currentYear = new Date().getFullYear();
+  // Calculate yearly parts sales Jan-Dec for current year
+  let yearlyParts = 0;
+  for(let m = 1; m <= 12; m++){
+    const key = `${currentYear}-${String(m).padStart(2,'0')}`;
+    const s = await getMonthSales(key);
+    yearlyParts += cs.reduce((sum,c) => sum + (+s[c.id]||0), 0);
+  }
   const sales = await getMonthSales(selectedMonthKey);
   _customers = cs;
   setSynced();
-  const monthParts = cs.reduce((s,c)=>s+(+sales[c.id]||0),0);
   document.getElementById('kpi-count').textContent=cs.length;
   document.getElementById('kpi-subs').textContent=fmt(cs.reduce((s,c)=>s+(+c.sub||0),0));
-  document.getElementById('kpi-parts').textContent=fmt(monthParts);
+  document.getElementById('kpi-parts').textContent=fmt(yearlyParts);
+  if(document.getElementById('kpi-parts-sub')) document.getElementById('kpi-parts-sub').textContent=`Jan – Dec ${currentYear}`;
   document.getElementById('kpi-lifetime').textContent=fmt(cs.reduce((s,c)=>s+(+c.parts_lifetime||0),0));
   const today=new Date(); today.setHours(0,0,0,0);
   const expiring=cs.filter(c=>{
@@ -1046,6 +1179,387 @@ async function renderActivityLog(){
         <div class="log-time">🕐 ${fmtTs(l.time)}</div>
       </div>
     </div>`).join('');
+}
+
+// ══════════════════════════════════════
+//  DAILY SALES
+// ══════════════════════════════════════
+const getDailySales = async () => (await sGet('fx24_daily_sales')) || [];
+const saveDailySales = async arr => { setSyncing(); await sSet('fx24_daily_sales', arr); setSynced(); };
+
+let editingDsId = null;
+
+async function openDsModal() {
+  editingDsId = null;
+  document.getElementById('ds-modal-title').textContent = 'Add Daily Sale Entry';
+  // Set today's date
+  document.getElementById('ds-date').value = new Date().toISOString().split('T')[0];
+  ['ds-material','ds-labor','ds-chargeable','ds-notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('ds-service').value = '';
+  // Populate client dropdown
+  const cs = await getCustomers();
+  const sel = document.getElementById('ds-client');
+  sel.innerHTML = '<option value="">Select client…</option>';
+  cs.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = (c.fxId ? c.fxId + ' — ' : '') + c.name;
+    sel.appendChild(opt);
+  });
+  openModal('ds-modal');
+}
+
+async function openDsEditModal(id) {
+  const entries = await getDailySales();
+  const e = entries.find(x => x.id === id);
+  if(!e) return;
+  editingDsId = id;
+  document.getElementById('ds-modal-title').textContent = 'Edit Entry';
+  const cs = await getCustomers();
+  const sel = document.getElementById('ds-client');
+  sel.innerHTML = '<option value="">Select client…</option>';
+  cs.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = (c.fxId ? c.fxId + ' — ' : '') + c.name;
+    sel.appendChild(opt);
+  });
+  document.getElementById('ds-date').value = e.date || '';
+  document.getElementById('ds-client').value = e.clientId || '';
+  document.getElementById('ds-service').value = e.service || '';
+  document.getElementById('ds-material').value = e.material || '';
+  document.getElementById('ds-labor').value = e.labor || '';
+  document.getElementById('ds-chargeable').value = e.chargeable || '';
+  document.getElementById('ds-notes').value = e.notes || '';
+  openModal('ds-modal');
+}
+
+function calcChargeable() {
+  const m = +document.getElementById('ds-material').value || 0;
+  const l = +document.getElementById('ds-labor').value || 0;
+  document.getElementById('ds-chargeable').value = m + l;
+}
+
+async function saveDsEntry() {
+  const date = document.getElementById('ds-date').value;
+  const clientId = document.getElementById('ds-client').value;
+  const service = document.getElementById('ds-service').value;
+  if(!date || !clientId || !service) { showToast('Please fill Date, Client and Service.','error'); return; }
+  const cs = await getCustomers();
+  const client = cs.find(c => c.id === clientId);
+  const entry = {
+    date,
+    clientId,
+    clientName: client ? client.name : '',
+    clientFxId: client ? (client.fxId || '') : '',
+    service: document.getElementById('ds-service').value,
+    material: +document.getElementById('ds-material').value || 0,
+    labor: +document.getElementById('ds-labor').value || 0,
+    chargeable: +document.getElementById('ds-chargeable').value || 0,
+    notes: document.getElementById('ds-notes').value.trim(),
+    createdAt: new Date().toISOString()
+  };
+  const entries = await getDailySales();
+  if(editingDsId) {
+    const idx = entries.findIndex(x => x.id === editingDsId);
+    if(idx > -1) entries[idx] = { ...entries[idx], ...entry };
+    showToast('Entry updated!', 'success');
+  } else {
+    entry.id = genId();
+    entries.unshift(entry);
+    showToast('Entry added!', 'success');
+  }
+  await saveDailySales(entries);
+  closeModal('ds-modal');
+  await renderDailySales();
+}
+
+async function renderDailySales() {
+  setSyncing();
+  const entries = await getDailySales();
+  const cs = await getCustomers();
+  setSynced();
+
+  // Populate client filter
+  const filterSel = document.getElementById('ds-filter-client');
+  const currentFilter = filterSel.value;
+  filterSel.innerHTML = '<option value="">All Clients</option>';
+  cs.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = (c.fxId || '') + ' — ' + c.name;
+    filterSel.appendChild(opt);
+  });
+  filterSel.value = currentFilter;
+
+  // Apply filters
+  const clientFilter = document.getElementById('ds-filter-client').value;
+  const dateFilter = document.getElementById('ds-filter-date').value;
+  const searchQ = (document.getElementById('ds-search').value || '').toLowerCase();
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  let filtered = entries.filter(e => {
+    if(clientFilter && e.clientId !== clientFilter) return false;
+    if(searchQ && !e.clientName.toLowerCase().includes(searchQ) && !e.service.toLowerCase().includes(searchQ)) return false;
+    if(dateFilter) {
+      const ed = new Date(e.date); ed.setHours(0,0,0,0);
+      if(dateFilter === 'today' && ed.getTime() !== today.getTime()) return false;
+      if(dateFilter === 'week') {
+        const weekAgo = new Date(today); weekAgo.setDate(today.getDate()-7);
+        if(ed < weekAgo) return false;
+      }
+      if(dateFilter === 'month') {
+        if(ed.getMonth() !== today.getMonth() || ed.getFullYear() !== today.getFullYear()) return false;
+      }
+    }
+    return true;
+  });
+
+  // Sort by date descending
+  filtered.sort((a,b) => new Date(b.date) - new Date(a.date));
+
+  // Update KPIs
+  document.getElementById('ds-kpi-count').textContent = filtered.length;
+  document.getElementById('ds-kpi-material').textContent = fmt(filtered.reduce((s,e) => s + (+e.material||0), 0));
+  const totalLabor = filtered.reduce((s,e) => s + (+e.labor||0), 0);
+  document.getElementById('ds-kpi-labor').textContent = fmt(totalLabor);
+  document.getElementById('ds-kpi-total').textContent = fmt(filtered.reduce((s,e) => s + (+e.chargeable||0), 0));
+  document.getElementById('ds-count-badge').textContent = filtered.length + ' entries';
+
+  // Labor breakdown by service
+  const services = ['Electric','Plumbing','AC','Small Furniture','RO'];
+  const serviceIcons = {'Electric':'⚡','Plumbing':'🔧','AC':'❄️'};
+  const breakdown = {};
+  services.forEach(s => breakdown[s] = 0);
+  filtered.forEach(e => { if(e.service && breakdown[e.service] !== undefined) breakdown[e.service] += (+e.labor||0); });
+  const bdEl = document.getElementById('ds-labor-breakdown');
+  const hasAny = Object.values(breakdown).some(v => v > 0);
+  if(hasAny) {
+    bdEl.style.display = 'block';
+    bdEl.innerHTML = services.map(s => breakdown[s] > 0 ? `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:11px">
+        <span style="color:var(--muted);font-weight:600">${serviceIcons[s]} ${s}</span>
+        <span style="color:var(--danger);font-weight:700">${fmt(breakdown[s])}</span>
+      </div>` : '').join('');
+  } else {
+    bdEl.style.display = 'none';
+  }
+
+  const tbody = document.getElementById('ds-tbody');
+  if(!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="ds-empty"><div class="big">🛠️</div><p>No entries yet. Click <strong>"+ Add Entry"</strong> to get started.</p></div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filtered.map((e,i) => {
+    const [fg,bg] = getColor(i);
+    return `<tr>
+      <td style="font-weight:600;color:var(--text2)">${fmtDate(e.date)}</td>
+      <td><div class="name-cell">
+        <div class="avatar" style="background:${bg};color:${fg};width:30px;height:30px;border-radius:8px;font-size:11px">${initials(e.clientName||'?')}</div>
+        <div>
+          <div style="font-weight:700;font-size:13px">${esc(e.clientName||'—')}</div>
+          ${e.clientFxId?`<div style="font-size:10px;color:var(--muted2)">${e.clientFxId}</div>`:''}
+        </div>
+      </div></td>
+      <td><span class="ds-service-tag">${esc(e.service||'—')}</span></td>
+      <td class="num c-warn">${e.material>0?fmt(e.material):'—'}</td>
+      <td class="num c-success">${e.labor>0?fmt(e.labor):'—'}</td>
+      <td class="num c-primary" style="font-weight:800">${fmt(e.chargeable)}</td>
+      <td><div class="actions-cell">
+        <button class="btn btn-secondary btn-sm" onclick="openDsEditModal('${e.id}')">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="confirmDeleteDs('${e.id}')">🗑</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+async function confirmDeleteDs(id) {
+  openConfirm('Delete Entry?', 'This entry will be permanently removed.', async () => {
+    const entries = (await getDailySales()).filter(e => e.id !== id);
+    await saveDailySales(entries);
+    await renderDailySales();
+    showToast('Entry deleted.', 'success');
+  });
+}
+
+// ══════════════════════════════════════
+//  TAX YEAR REPORT
+// ══════════════════════════════════════
+async function generateTaxReport() {
+  const yearVal = document.getElementById('tax-year-select').value;
+  const [startY, endY] = yearVal.split('-').map(Number);
+  const statusEl = document.getElementById('tax-report-status');
+
+  statusEl.style.display = 'block';
+  statusEl.style.background = 'var(--primary-light)';
+  statusEl.style.color = 'var(--primary)';
+  statusEl.style.border = '1px solid rgba(26,86,232,0.2)';
+  statusEl.textContent = '⏳ Gathering data…';
+
+  // Build months: Apr startY → Mar endY
+  const months = [];
+  for(let m = 3; m <= 14; m++) {
+    const yr = m <= 12 ? startY : endY;
+    const mo = m <= 12 ? m : m - 12;
+    const key = `${yr}-${String(mo).padStart(2,'0')}`;
+    const label = new Date(yr, mo-1, 1).toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+    months.push({key, label, mo, yr});
+  }
+
+  // Fetch all sales data
+  const salesData = [];
+  for(const m of months) {
+    const s = await getMonthSales(m.key);
+    const total = Object.entries(s).filter(([k])=>k!=='_updatedAt').reduce((sum,[,v])=>sum+(+v||0),0);
+    salesData.push({...m, total, sales: s});
+  }
+
+  const cs = await getCustomers();
+  const grandTotal = salesData.reduce((s,m)=>s+m.total,0);
+  const fyLabel = `FY ${startY}–${endY}`;
+
+  // Build PDF HTML
+  const barMax = Math.max(...salesData.map(m=>m.total), 1);
+  const barColors = ['#1a56e8','#0ea86e','#e07c00','#7c3aed','#dc2626','#0369a1','#1a56e8','#0ea86e','#e07c00','#7c3aed','#dc2626','#0369a1'];
+
+  const monthRows = salesData.map((m,i) => `
+    <tr style="border-bottom:1px solid #e2e8f4">
+      <td style="padding:10px 14px;font-weight:600;color:#374151;font-size:13px">${m.label}</td>
+      <td style="padding:10px 14px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="flex:1;background:#f0f4fa;border-radius:6px;height:14px;overflow:hidden">
+            <div style="width:${m.total?Math.max(4,Math.round(m.total/barMax*100)):0}%;height:100%;background:${barColors[i]};border-radius:6px;transition:width 0.3s"></div>
+          </div>
+          <span style="font-size:12px;font-weight:700;color:#6b7280;min-width:80px;text-align:right">${fmt(m.total)}</span>
+        </div>
+      </td>
+      <td style="padding:10px 14px;text-align:right;font-weight:800;color:#1a56e8;font-size:14px">${fmt(m.total)}</td>
+    </tr>`).join('');
+
+  // Customer breakdown
+  const custTotals = cs.map(c => {
+    const total = salesData.reduce((s,m) => s + (+m.sales[c.id]||0), 0);
+    return {...c, total};
+  }).filter(c => c.total > 0).sort((a,b) => b.total - a.total);
+
+  const custRows = custTotals.map((c,i) => `
+    <tr style="border-bottom:1px solid #e2e8f4">
+      <td style="padding:10px 14px;font-size:13px">
+        <span style="display:inline-block;background:linear-gradient(135deg,#eef2fd,#f3effe);color:#1a56e8;border:1.5px solid rgba(26,86,232,0.18);border-radius:5px;padding:2px 8px;font-family:monospace;font-size:11px;font-weight:800;margin-right:8px">${c.fxId||'—'}</span>
+        ${esc(c.name)}
+      </td>
+      <td style="padding:10px 14px;text-align:right;font-weight:700;color:#0ea86e;font-size:14px">${fmt(c.total)}</td>
+      <td style="padding:10px 14px;text-align:right;color:#6b7280;font-size:12px">${grandTotal>0?((c.total/grandTotal)*100).toFixed(1)+'%':'0%'}</td>
+    </tr>`).join('');
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Fixon24 Tax Report ${fyLabel}</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Plus Jakarta Sans',sans-serif;background:#fff;color:#0f172a;padding:40px;max-width:900px;margin:0 auto}
+  @media print{body{padding:20px}button{display:none!important}.no-print{display:none!important}}
+</style>
+</head>
+<body>
+<!-- PRINT BUTTON -->
+<div class="no-print" style="text-align:right;margin-bottom:20px">
+  <button onclick="window.print()" style="background:linear-gradient(135deg,#1a56e8,#4f7ef7);color:#fff;border:none;padding:12px 28px;border-radius:10px;font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:700;cursor:pointer">🖨️ Print / Save as PDF</button>
+</div>
+
+<!-- HEADER -->
+<div style="background:linear-gradient(135deg,#1a56e8,#7c3aed);border-radius:20px;padding:36px 40px;color:#fff;margin-bottom:32px;display:flex;justify-content:space-between;align-items:center">
+  <div>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+      <div style="width:44px;height:44px;background:rgba(255,255,255,0.2);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px">🔧</div>
+      <div style="font-size:24px;font-weight:800;letter-spacing:-0.02em">Fixon24</div>
+    </div>
+    <div style="font-size:28px;font-weight:800;letter-spacing:-0.02em;margin-bottom:6px">Tax Year Report</div>
+    <div style="font-size:15px;opacity:0.85;font-weight:500">${fyLabel} &nbsp;·&nbsp; April ${startY} – March ${endY}</div>
+  </div>
+  <div style="text-align:right">
+    <div style="font-size:13px;opacity:0.75;margin-bottom:6px">Total Parts Revenue</div>
+    <div style="font-size:36px;font-weight:800;letter-spacing:-0.02em">${fmt(grandTotal)}</div>
+    <div style="font-size:12px;opacity:0.7;margin-top:4px">Generated ${new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'})}</div>
+  </div>
+</div>
+
+<!-- SUMMARY CARDS -->
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:32px">
+  <div style="background:#f0f4fa;border-radius:14px;padding:20px 22px;border:1px solid #e2e8f4">
+    <div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">💰 Total Revenue</div>
+    <div style="font-size:24px;font-weight:800;color:#1a56e8">${fmt(grandTotal)}</div>
+    <div style="font-size:11px;color:#9ca3af;margin-top:4px">Parts sales only</div>
+  </div>
+  <div style="background:#f0fdf4;border-radius:14px;padding:20px 22px;border:1px solid #bbf7d0">
+    <div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">📅 Best Month</div>
+    <div style="font-size:24px;font-weight:800;color:#0ea86e">${salesData.reduce((best,m)=>m.total>best.total?m:best,salesData[0]).label.split(' ')[0]}</div>
+    <div style="font-size:11px;color:#9ca3af;margin-top:4px">${fmt(salesData.reduce((best,m)=>m.total>best.total?m:best,salesData[0]).total)}</div>
+  </div>
+  <div style="background:#fff5e6;border-radius:14px;padding:20px 22px;border:1px solid #fed7aa">
+    <div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">👥 Active Clients</div>
+    <div style="font-size:24px;font-weight:800;color:#e07c00">${custTotals.length}</div>
+    <div style="font-size:11px;color:#9ca3af;margin-top:4px">With parts revenue</div>
+  </div>
+</div>
+
+<!-- MONTHLY CHART -->
+<div style="background:#fff;border:1px solid #e2e8f4;border-radius:16px;padding:28px;margin-bottom:28px;box-shadow:0 1px 3px rgba(15,23,42,0.07)">
+  <div style="font-size:16px;font-weight:800;color:#0f172a;margin-bottom:20px;display:flex;align-items:center;gap:8px">📊 Monthly Parts Sales Breakdown</div>
+  <table style="width:100%;border-collapse:collapse">
+    <thead>
+      <tr style="background:#f7f9fc;border-bottom:2px solid #e2e8f4">
+        <th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">Month</th>
+        <th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">Chart</th>
+        <th style="padding:10px 14px;text-align:right;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">Revenue</th>
+      </tr>
+    </thead>
+    <tbody>${monthRows}</tbody>
+    <tfoot>
+      <tr style="background:linear-gradient(90deg,#eef2fd,#f3effe);border-top:2px solid #e2e8f4">
+        <td colspan="2" style="padding:14px;font-size:14px;font-weight:800;color:#1a56e8">📌 Total ${fyLabel}</td>
+        <td style="padding:14px;text-align:right;font-size:18px;font-weight:800;color:#1a56e8">${fmt(grandTotal)}</td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+
+<!-- CUSTOMER BREAKDOWN -->
+${custTotals.length ? `
+<div style="background:#fff;border:1px solid #e2e8f4;border-radius:16px;padding:28px;box-shadow:0 1px 3px rgba(15,23,42,0.07)">
+  <div style="font-size:16px;font-weight:800;color:#0f172a;margin-bottom:20px">👥 Customer-wise Revenue Breakdown</div>
+  <table style="width:100%;border-collapse:collapse">
+    <thead>
+      <tr style="background:#f7f9fc;border-bottom:2px solid #e2e8f4">
+        <th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">Customer</th>
+        <th style="padding:10px 14px;text-align:right;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">Total Revenue</th>
+        <th style="padding:10px 14px;text-align:right;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">% Share</th>
+      </tr>
+    </thead>
+    <tbody>${custRows}</tbody>
+  </table>
+</div>` : ''}
+
+<!-- FOOTER -->
+<div style="margin-top:32px;text-align:center;color:#9ca3af;font-size:11px;padding:20px 0;border-top:1px solid #e2e8f4">
+  Fixon24 · Tax Report ${fyLabel} · Generated on ${new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'})} · Confidential
+</div>
+</body>
+</html>`;
+
+  // Open in new window for printing
+  const win = window.open('', '_blank');
+  win.document.write(html);
+  win.document.close();
+
+  statusEl.style.background = 'var(--success-light)';
+  statusEl.style.color = 'var(--success)';
+  statusEl.style.border = '1px solid rgba(14,168,110,0.2)';
+  statusEl.textContent = '✅ Report opened in new tab! Click "Print / Save as PDF" to download.';
 }
 
 // ══════════════════════════════════════
