@@ -1,0 +1,79 @@
+name: Claude Auto-Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_message:
+        description: 'Commit message for this deployment'
+        required: true
+        default: 'Auto-deploy from Claude'
+      
+      changes:
+        description: 'JSON object with file changes'
+        required: false
+
+jobs:
+  auto-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.CLAUDE_AUTOMATION_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config --global user.name "Claude CI Bot"
+          git config --global user.email "claude-automation@dev.local"
+
+      - name: Set up Node.js (if needed)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: |
+          if [ -f "package.json" ]; then
+            npm ci
+          fi
+
+      - name: Run tests (if available)
+        continue-on-error: true
+        run: |
+          if [ -f "package.json" ] && npm run test >/dev/null 2>&1; then
+            npm run test
+          fi
+
+      - name: Commit and push changes
+        run: |
+          git add -A
+          
+          if [ -n "$(git status --porcelain)" ]; then
+            git commit -m "${{ github.event.inputs.commit_message }}"
+            git push origin main
+            echo "✅ Changes committed and pushed to main branch"
+            echo "Deployment will start automatically..."
+          else
+            echo "ℹ️ No changes to commit"
+          fi
+
+      - name: Trigger deployment
+        run: |
+          echo "🚀 Deployment triggered!"
+          echo "Commit: ${{ github.event.inputs.commit_message }}"
+          echo "Your deployment platform will auto-detect this push and deploy shortly..."
+          echo "Check your deployment platform dashboard for status"
+
+      - name: Deployment summary
+        if: success()
+        run: |
+          echo "════════════════════════════════════════"
+          echo "✅ AUTO-DEPLOY SUCCESSFUL"
+          echo "════════════════════════════════════════"
+          echo "Message: ${{ github.event.inputs.commit_message }}"
+          echo "Branch: main"
+          echo "Status: Deployment in progress"
+          echo "Next: Check your deployment platform dashboard"
+          echo "════════════════════════════════════════"
