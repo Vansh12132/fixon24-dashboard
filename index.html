@@ -299,7 +299,7 @@ td { padding:13px 20px; font-size:13px; vertical-align:middle; white-space:nowra
     <nav class="header-nav">
       <button class="nav-btn active" onclick="showView('dashboard')">📊 Dashboard</button>
       <button class="nav-btn" onclick="showView('customers')">👥 Customers</button>
-      <button class="nav-btn" onclick="showView('sales')">📦 Monthly Sales</button>
+
       <button class="nav-btn" onclick="showView('dailysales')">🛠️ Daily Sales</button>
       <button class="nav-btn" onclick="showView('settings')">⚙️ Settings</button>
     </nav>
@@ -1260,9 +1260,10 @@ async function saveDsEntry() {
     createdAt: new Date().toISOString()
   };
   const entries = await getDailySales();
+  let oldChargeable = 0;
   if(editingDsId) {
     const idx = entries.findIndex(x => x.id === editingDsId);
-    if(idx > -1) entries[idx] = { ...entries[idx], ...entry };
+    if(idx > -1) { oldChargeable = entries[idx].chargeable || 0; entries[idx] = { ...entries[idx], ...entry }; }
     showToast('Entry updated!', 'success');
   } else {
     entry.id = genId();
@@ -1270,6 +1271,21 @@ async function saveDsEntry() {
     showToast('Entry added!', 'success');
   }
   await saveDailySales(entries);
+
+  // Sync chargeable into monthly parts sales
+  const monthKey = date.slice(0, 7); // e.g. "2026-03"
+  const monthSales = await getMonthSales(monthKey);
+  const prev = +monthSales[clientId] || 0;
+  const diff = entry.chargeable - oldChargeable;
+  if(diff !== 0) {
+    monthSales[clientId] = Math.max(0, prev + diff);
+    monthSales._updatedAt = new Date().toISOString();
+    await sSet('fx24_sales_' + monthKey, monthSales);
+    // Also update lifetime parts revenue on customer
+    const updCs = cs.map(c => c.id === clientId ? {...c, parts_lifetime: Math.max(0, (+c.parts_lifetime||0) + diff), updatedAt: new Date().toISOString()} : c);
+    await saveCustomersData(updCs);
+  }
+
   closeModal('ds-modal');
   await renderDailySales();
 }
@@ -1323,8 +1339,7 @@ async function renderDailySales() {
   document.getElementById('ds-kpi-material').textContent = fmt(filtered.reduce((s,e) => s + (+e.material||0), 0));
   const totalLabor = filtered.reduce((s,e) => s + (+e.labor||0), 0);
   document.getElementById('ds-kpi-labor').textContent = fmt(totalLabor);
-  document.getElementById('ds-kpi-total').textContent = fmt(filtered.reduce((s,e) => s + (+e.chargeable||0), 0));
-  document.getElementById('ds-count-badge').textContent = filtered.length + ' entries';
+  document.getElementById('ds-count-badge').textContent = entries.length + ' entries';
 
   // Labor breakdown by service
   const services = ['Electric','Plumbing','AC','Small Furniture','RO'];
