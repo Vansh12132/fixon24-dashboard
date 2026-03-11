@@ -625,7 +625,7 @@ const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 async function sGet(key) {
   try {
-    const { data, error } = await _sb.from('fx24_store').select('value').eq('key', key).single();
+    const { data, error } = await _sb.from('fx24_store').select('value').eq('key', key).maybeSingle();
     if(error || !data) return null;
     return data.value;
   } catch(e) { return null; }
@@ -642,12 +642,13 @@ async function sSet(key, value) {
 // Real-time subscription — auto refresh when any data changes
 _sb.channel('fx24_changes')
   .on('postgres_changes', { event: '*', schema: 'public', table: 'fx24_store' }, () => {
-    const active = ['dashboard','customers','sales'].find(v =>
+    const active = ['dashboard','customers','sales','dailysales'].find(v =>
       document.getElementById('view-'+v)?.style.display !== 'none'
     );
     if(active==='dashboard') renderDashboard();
     if(active==='customers') renderCustTable();
     if(active==='sales') renderSalesView();
+    if(active==='dailysales') renderDailySales();
   })
   .subscribe();
 
@@ -1186,7 +1187,14 @@ async function renderActivityLog(){
 // ══════════════════════════════════════
 //  DAILY SALES
 // ══════════════════════════════════════
-const getDailySales = async () => (await sGet('fx24_daily_sales')) || [];
+const getDailySales = async () => {
+  try {
+    const val = await sGet('fx24_daily_sales');
+    if(!val) return [];
+    if(Array.isArray(val)) return val;
+    return [];
+  } catch(e) { return []; }
+};
 const saveDailySales = async arr => { setSyncing(); await sSet('fx24_daily_sales', arr); setSynced(); };
 
 let editingDsId = null;
