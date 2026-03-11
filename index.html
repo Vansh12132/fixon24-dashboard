@@ -1299,6 +1299,7 @@ async function saveDsEntry() {
 }
 
 async function renderDailySales() {
+  try {
   setSyncing();
   const entries = await getDailySales();
   const cs = await getCustomers();
@@ -1350,23 +1351,27 @@ async function renderDailySales() {
   document.getElementById('ds-count-badge').textContent = entries.length + ' entries';
 
   // Labor breakdown by service
-  const services = ['Electric','Plumbing','AC','Small Furniture','RO'];
-  const serviceIcons = {'Electric':'⚡','Plumbing':'🔧','AC':'❄️'};
-  const breakdown = {};
-  services.forEach(s => breakdown[s] = 0);
-  filtered.forEach(e => { if(e.service && breakdown[e.service] !== undefined) breakdown[e.service] += (+e.labor||0); });
-  const bdEl = document.getElementById('ds-labor-breakdown');
-  const hasAny = Object.values(breakdown).some(v => v > 0);
-  if(hasAny) {
-    bdEl.style.display = 'block';
-    bdEl.innerHTML = services.map(s => breakdown[s] > 0 ? `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:11px">
-        <span style="color:var(--muted);font-weight:600">${serviceIcons[s]} ${s}</span>
-        <span style="color:var(--danger);font-weight:700">${fmt(breakdown[s])}</span>
-      </div>` : '').join('');
-  } else {
-    bdEl.style.display = 'none';
-  }
+  try {
+    const services = ['Electric','Plumbing','AC','Small Furniture','RO'];
+    const serviceIcons = {'Electric':'⚡','Plumbing':'🔧','AC':'❄️','Small Furniture':'🪑','RO':'💧'};
+    const breakdown = {};
+    services.forEach(s => breakdown[s] = 0);
+    filtered.forEach(e => { if(e.service && breakdown[e.service] !== undefined) breakdown[e.service] += (+e.labor||0); });
+    const bdEl = document.getElementById('ds-labor-breakdown');
+    if(bdEl) {
+      const hasAny = Object.values(breakdown).some(v => v > 0);
+      if(hasAny) {
+        bdEl.style.display = 'block';
+        bdEl.innerHTML = services.map(s => breakdown[s] > 0 ? `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:11px">
+            <span style="color:var(--muted);font-weight:600">${serviceIcons[s]} ${s}</span>
+            <span style="color:var(--danger);font-weight:700">${fmt(breakdown[s])}</span>
+          </div>` : '').join('');
+      } else {
+        bdEl.style.display = 'none';
+      }
+    }
+  } catch(err) { console.warn('Labor breakdown error:', err); }
 
   const tbody = document.getElementById('ds-tbody');
   if(!filtered.length) {
@@ -1395,6 +1400,7 @@ async function renderDailySales() {
       </div></td>
     </tr>`;
   }).join('');
+  } catch(err) { console.error('renderDailySales error:', err); setSynced(); }
 }
 
 async function confirmDeleteDs(id) {
