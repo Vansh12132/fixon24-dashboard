@@ -1301,8 +1301,11 @@ async function saveDsEntry() {
 async function renderDailySales() {
   try {
   setSyncing();
+  console.log('[DS] renderDailySales called');
   const entries = await getDailySales();
+  console.log('[DS] entries fetched:', entries ? entries.length : 'null', JSON.stringify(entries).slice(0,200));
   const cs = await getCustomers();
+  console.log('[DS] customers fetched:', cs ? cs.length : 'null');
   setSynced();
 
   // Populate client filter
@@ -1400,7 +1403,7 @@ async function renderDailySales() {
       </div></td>
     </tr>`;
   }).join('');
-  } catch(err) { console.error('renderDailySales error:', err); setSynced(); }
+  } catch(err) { console.error('[DS] renderDailySales ERROR:', err.message, err.stack); setSynced(); const t=document.getElementById('ds-tbody'); if(t) t.innerHTML=`<tr><td colspan="7" style="color:red;padding:20px">ERROR: ${err.message}</td></tr>`; }
 }
 
 async function confirmDeleteDs(id) {
