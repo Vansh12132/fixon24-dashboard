@@ -1093,7 +1093,7 @@ document.querySelectorAll('.modal-overlay').forEach(o=>{o.addEventListener('clic
 let confirmCb=null;
 function openConfirm(title,msg,cb){document.getElementById('confirm-title').textContent=title;document.getElementById('confirm-msg').textContent=msg;confirmCb=cb;document.getElementById('confirm-overlay').classList.add('open');}
 function closeConfirm(){document.getElementById('confirm-overlay').classList.remove('open');confirmCb=null;}
-document.getElementById('confirm-ok-btn').onclick=()=>{if(confirmCb)confirmCb();closeConfirm();};
+document.getElementById('confirm-ok-btn').onclick=async()=>{if(confirmCb)await confirmCb();closeConfirm();};
 async function confirmDelete(id,name){
   openConfirm('Delete Customer?',`"${name}" will be permanently removed.`,async()=>{
     const allCs=await getCustomers();
@@ -1417,8 +1417,26 @@ async function renderDailySales() {
 
 async function confirmDeleteDs(id) {
   openConfirm('Delete Entry?', 'This entry will be permanently removed.', async () => {
-    const entries = (await getDailySales()).filter(e => e.id !== id);
-    await saveDailySales(entries);
+    const allEntries = await getDailySales();
+    const entry = allEntries.find(e => e.id === id);
+
+    // Reverse material sold from monthly parts sales + lifetime
+    if(entry && entry.material > 0 && entry.clientId && entry.date) {
+      const monthKey = entry.date.slice(0, 7);
+      const monthSales = await getMonthSales(monthKey);
+      const prev = +monthSales[entry.clientId] || 0;
+      monthSales[entry.clientId] = Math.max(0, prev - entry.material);
+      monthSales._updatedAt = new Date().toISOString();
+      await sSet('fx24_sales_' + monthKey, monthSales);
+      const cs = await getCustomers();
+      const updCs = cs.map(c => c.id === entry.clientId
+        ? {...c, parts_lifetime: Math.max(0, (+c.parts_lifetime||0) - entry.material), updatedAt: new Date().toISOString()}
+        : c);
+      await saveCustomersData(updCs);
+    }
+
+    const remaining = allEntries.filter(e => e.id !== id);
+    await saveDailySales(remaining);
     await renderDailySales();
     showToast('Entry deleted.', 'success');
   });
