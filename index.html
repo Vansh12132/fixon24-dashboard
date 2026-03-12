@@ -1141,8 +1141,8 @@ function fmtTs(iso){
 
 function fmtDate(dateStr){
   if(!dateStr) return '—';
-  const d=new Date(dateStr);
-  return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+  const [y,m,d] = dateStr.split('-').map(Number);
+  return new Date(y,m-1,d).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
 }
 
 function getSubBadge(c){
@@ -1258,7 +1258,7 @@ async function saveDsEntry() {
   const entry = {
     date,
     clientId,
-    clientName: client ? client.name : '',
+    clientName: client ? (client.name || '') : '',
     clientFxId: client ? (client.fxId || '') : '',
     service: document.getElementById('ds-service').value,
     material: +document.getElementById('ds-material').value || 0,
@@ -1268,10 +1268,9 @@ async function saveDsEntry() {
     createdAt: new Date().toISOString()
   };
   const entries = await getDailySales();
-  let oldChargeable = 0;
   if(editingDsId) {
     const idx = entries.findIndex(x => x.id === editingDsId);
-    if(idx > -1) { oldChargeable = entries[idx].chargeable || 0; entries[idx] = { ...entries[idx], ...entry }; }
+    if(idx > -1) { entries[idx] = { ...entries[idx], ...entry }; }
     showToast('Entry updated!', 'success');
   } else {
     entry.id = genId();
@@ -1280,11 +1279,12 @@ async function saveDsEntry() {
   }
   await saveDailySales(entries);
 
-  // Sync chargeable into monthly parts sales
+  // Sync Material Sold into monthly parts sales
   const monthKey = date.slice(0, 7); // e.g. "2026-03"
   const monthSales = await getMonthSales(monthKey);
   const prev = +monthSales[clientId] || 0;
-  const diff = entry.chargeable - oldChargeable;
+  const oldMaterial = editingDsId ? (entries.find(x=>x.id===editingDsId)||{}).material || 0 : 0;
+  const diff = entry.material - oldMaterial;
   if(diff !== 0) {
     monthSales[clientId] = Math.max(0, prev + diff);
     monthSales._updatedAt = new Date().toISOString();
@@ -1301,11 +1301,8 @@ async function saveDsEntry() {
 async function renderDailySales() {
   try {
   setSyncing();
-  console.log('[DS] renderDailySales called');
   const entries = await getDailySales();
-  console.log('[DS] entries fetched:', entries ? entries.length : 'null', JSON.stringify(entries).slice(0,200));
   const cs = await getCustomers();
-  console.log('[DS] customers fetched:', cs ? cs.length : 'null');
   setSynced();
 
   // Populate client filter
@@ -1326,11 +1323,18 @@ async function renderDailySales() {
   const searchQ = (document.getElementById('ds-search').value || '').toLowerCase();
   const today = new Date(); today.setHours(0,0,0,0);
 
+  // Parse date safely (avoid UTC timezone shifting)
+  function parseLocalDate(str) {
+    if(!str) return new Date(0);
+    const [y,m,d] = str.split('-').map(Number);
+    return new Date(y, m-1, d);
+  }
+
   let filtered = entries.filter(e => {
     if(clientFilter && e.clientId !== clientFilter) return false;
-    if(searchQ && !e.clientName.toLowerCase().includes(searchQ) && !e.service.toLowerCase().includes(searchQ)) return false;
+    if(searchQ && !(e.clientName||'').toLowerCase().includes(searchQ) && !(e.service||'').toLowerCase().includes(searchQ)) return false;
     if(dateFilter) {
-      const ed = new Date(e.date); ed.setHours(0,0,0,0);
+      const ed = parseLocalDate(e.date);
       if(dateFilter === 'today' && ed.getTime() !== today.getTime()) return false;
       if(dateFilter === 'week') {
         const weekAgo = new Date(today); weekAgo.setDate(today.getDate()-7);
@@ -1345,6 +1349,7 @@ async function renderDailySales() {
 
   // Sort by date descending
   filtered.sort((a,b) => new Date(b.date) - new Date(a.date));
+  console.log('[DS] filtered count after sort:', filtered.length);
 
   // Update KPIs
   document.getElementById('ds-kpi-count').textContent = filtered.length;
@@ -1384,26 +1389,30 @@ async function renderDailySales() {
 
   tbody.innerHTML = filtered.map((e,i) => {
     const [fg,bg] = getColor(i);
+    // Look up clientName from customers array if missing in entry
+    const clientObj = cs.find(c => c.id === e.clientId);
+    const clientName = e.clientName || (clientObj ? clientObj.name : '—');
+    const clientFxId = e.clientFxId || (clientObj ? clientObj.fxId : '');
     return `<tr>
       <td style="font-weight:600;color:var(--text2)">${fmtDate(e.date)}</td>
       <td><div class="name-cell">
-        <div class="avatar" style="background:${bg};color:${fg};width:30px;height:30px;border-radius:8px;font-size:11px">${initials(e.clientName||'?')}</div>
+        <div class="avatar" style="background:${bg};color:${fg};width:30px;height:30px;border-radius:8px;font-size:11px">${initials(clientName)}</div>
         <div>
-          <div style="font-weight:700;font-size:13px">${esc(e.clientName||'—')}</div>
-          ${e.clientFxId?`<div style="font-size:10px;color:var(--muted2)">${e.clientFxId}</div>`:''}
+          <div style="font-weight:700;font-size:13px">${esc(clientName)}</div>
+          ${clientFxId?`<div style="font-size:10px;color:var(--muted2)">${clientFxId}</div>`:''}
         </div>
       </div></td>
       <td><span class="ds-service-tag">${esc(e.service||'—')}</span></td>
-      <td class="num c-warn">${e.material>0?fmt(e.material):'—'}</td>
-      <td class="num c-success">${e.labor>0?fmt(e.labor):'—'}</td>
-      <td class="num c-primary" style="font-weight:800">${fmt(e.chargeable)}</td>
+      <td class="num c-warn">${(+e.material||0)>0?fmt(e.material):'—'}</td>
+      <td class="num c-success">${(+e.labor||0)>0?fmt(e.labor):'—'}</td>
+      <td class="num c-primary" style="font-weight:800">${fmt(e.chargeable||0)}</td>
       <td><div class="actions-cell">
         <button class="btn btn-secondary btn-sm" onclick="openDsEditModal('${e.id}')">✏️</button>
         <button class="btn btn-danger btn-sm" onclick="confirmDeleteDs('${e.id}')">🗑</button>
       </div></td>
     </tr>`;
   }).join('');
-  } catch(err) { console.error('[DS] renderDailySales ERROR:', err.message, err.stack); setSynced(); const t=document.getElementById('ds-tbody'); if(t) t.innerHTML=`<tr><td colspan="7" style="color:red;padding:20px">ERROR: ${err.message}</td></tr>`; }
+  } catch(err) { console.error('[DS] renderDailySales ERROR:', err.message, err.stack); setSynced(); }
 }
 
 async function confirmDeleteDs(id) {
